@@ -1,4 +1,86 @@
 <!DOCTYPE html>
 <html lang="fr">
-<!-- HTML TRONQUÉ POUR L'EXEMPLE -->
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reversi - Mone VS May.C</title>
+  <style>
+    body { font-family: Arial; background: #f0f0f0; text-align: center; }
+    #board { display: grid; grid-template-columns: repeat(8, 40px); margin: 20px auto; }
+    .cell { width: 40px; height: 40px; background: #2e8b57; margin: 1px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .mone { background: #ff1493; border-radius: 50%; width: 30px; height: 30px; }
+    .mayc { background: #8a2be2; border-radius: 50%; width: 30px; height: 30px; }
+    #info, #score, #winner { margin: 10px; font-size: 18px; }
+    button { margin: 15px; padding: 10px 20px; font-size: 16px; }
+  </style>
+</head>
+<body>
+  <h1>Reversi - Mone 🥊 VS May.C 👋</h1>
+  <div>
+    <input id="room" placeholder="Nom de la partie">
+    <button onclick="joinGame()">Rejoindre</button>
+  </div>
+  <div id="info"></div>
+  <div id="score"></div>
+  <div id="board"></div>
+  <div id="winner"></div>
+  <button onclick="resetGame()">Rejouer</button>
+
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+  <script>
+    const socket = io();
+    let currentRoom = "";
+
+    const boardDiv = document.getElementById('board');
+    const infoDiv = document.getElementById('info');
+    const scoreDiv = document.getElementById('score');
+    const winnerDiv = document.getElementById('winner');
+
+    function joinGame() {
+      const roomName = document.getElementById('room').value.trim();
+      if (!roomName) return alert("Choisis un nom de partie");
+      currentRoom = roomName;
+      socket.emit('joinGame', roomName);
+    }
+
+    socket.on('gameState', (game) => {
+      renderBoard(game.board);
+      infoDiv.textContent = `Tour de : ${game.currentPlayer === 'mone' ? 'Mone' : 'May.C'}`;
+      updateScore(game.board);
+    });
+
+    function renderBoard(board) {
+      boardDiv.innerHTML = '';
+      board.forEach((row, r) => {
+        row.forEach((cell, c) => {
+          const div = document.createElement('div');
+          div.classList.add('cell');
+          if (cell) div.classList.add(cell);
+          div.onclick = () => socket.emit('makeMove', { row: r, col: c, room: currentRoom });
+          boardDiv.appendChild(div);
+        });
+      });
+    }
+
+    function updateScore(board) {
+      let m = 0, y = 0;
+      board.flat().forEach(c => {
+        if (c === 'mone') m++;
+        if (c === 'mayc') y++;
+      });
+      scoreDiv.textContent = `Mone : ${m} | May.C : ${y}`;
+      if (m + y === 64) {
+        if (m > y) winnerDiv.innerHTML = '<h2 style="color:#ff1493">MONE 🥊</h2>Voilà baby... 😆😘';
+        else if (y > m) winnerDiv.innerHTML = '<h2 style="color:#8a2be2">May.C 👋</h2>May.C va te donner un gage... 😉';
+        else winnerDiv.textContent = 'Égalité parfaite !';
+      } else {
+        winnerDiv.textContent = '';
+      }
+    }
+
+    function resetGame() {
+      socket.emit('resetGame', currentRoom);
+    }
+  </script>
+</body>
 </html>
