@@ -1,60 +1,70 @@
-const express = require('express');
+// serveur.js - Serveur WebSocket et Express pour Reversi
+
+const express = require("express");
+const path = require("path");
+const http = require("http");
+const { Server } = require("socket.io");
+
 const app = express();
-const http = require('http').createServer(app);
-const io = require('socket.io')(http);
+const server = http.createServer(app);
+const io = new Server(server);
+const port = process.env.PORT || 3000;
 
-const rooms = {};
+app.use(express.static(path.join(__dirname, "public")));
 
-app.use(express.static('public'));
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
 
-io.on('connection', (socket) => {
-  console.log('Un joueur s\'est connecté.');
+let rooms = {};
 
-  socket.on('join', (room) => {
-    socket.join(room);
+function initializeBoard() {
+  const cells = Array(64).fill(null);
+  cells[27] = "mayc";
+  cells[28] = "mone";
+  cells[35] = "mone";
+  cells[36] = "mayc";
+  return cells;
+}
 
+io.on("connection", (socket) => {
+  console.log("Un utilisateur s'est connecté");
+
+  socket.on("join", (room) => {
     if (!rooms[room]) {
       rooms[room] = {
         players: [],
-        cells: Array(64).fill(null),
+        cells: initializeBoard()
       };
     }
 
-    const playerRoom = rooms[room];
+    if (rooms[room].players.length < 2) {
+      rooms[room].players.push(socket.id);
+      socket.join(room);
 
-    if (playerRoom.players.length >= 2) {
-      socket.emit('full');
-      return;
+      socket.emit("start", rooms[room].cells);
+    } else {
+      socket.emit("full");
     }
-
-    playerRoom.players.push(socket.id);
-    io.to(room).emit('start', playerRoom.cells);
   });
 
-  socket.on('move', ({ room, cell, player }) => {
+  socket.on("move", ({ room, cell, player }) => {
+    if (!rooms[room]) return;
+    rooms[room].cells[cell] = player;
+    io.to(room).emit("move", { cell, player, updatedCells: rooms[room].cells });
+  });
+
+  socket.on("restart", (room) => {
     if (rooms[room]) {
-      rooms[room].cells[cell] = player;
-      io.to(room).emit('move', {
-        cell,
-        player,
-        updatedCells: rooms[room].cells
-      });
+      rooms[room].cells = initializeBoard();
+      io.to(room).emit("restart", rooms[room].cells);
     }
   });
 
-  socket.on('restart', (room) => {
-    if (rooms[room]) {
-      rooms[room].cells = Array(64).fill(null);
-      io.to(room).emit('restart', rooms[room].cells);
-    }
-  });
-
-  socket.on('disconnect', () => {
-    console.log('Un joueur s\'est déconnecté.');
-    for (const room in rooms) {
-      const index = rooms[room].players.indexOf(socket.id);
-      if (index !== -1) {
-        rooms[room].players.splice(index, 1);
+  socket.on("disconnecting", () => {
+    for (const room of socket.rooms) {
+      if (rooms[room]) {
+        rooms[room].players = rooms[room].players.filter((id) => id !== socket.id);
         if (rooms[room].players.length === 0) {
           delete rooms[room];
         }
@@ -63,7 +73,6 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => {
-  console.log(`Serveur lancé sur le port ${PORT}`);
+server.listen(port, () => {
+  console.log(`Serveur actif sur le port ${port}`);
 });
