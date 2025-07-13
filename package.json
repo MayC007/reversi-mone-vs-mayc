@@ -1,11 +1,14 @@
 {
   "name": "reversi-mone-vs-mayc",
   "version": "1.0.0",
-  "description": "Jeu Reversi ",
+  "description": "Jeu Reversi à deux joueurs - Mone VS May.C",
   "main": "serveur.js",
   "scripts": {
     "start": "node serveur.js"
   },
+  "keywords": ["reversi", "mone", "mayc", "multiplayer"],
+  "author": "",
+  "license": "ISC",
   "dependencies": {
     "express": "^4.18.2",
     "socket.io": "^4.7.2"
