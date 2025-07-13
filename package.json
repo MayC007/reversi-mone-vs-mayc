@@ -1,6 +1,7 @@
 {
   "name": "reversi-mone-vs-mayc",
   "version": "1.0.0",
+  "description": "Jeu à distance entre Mone et May.C",
   "main": "serveur.js",
   "scripts": {
     "start": "node serveur.js"
