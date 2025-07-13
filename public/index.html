@@ -12,13 +12,19 @@
     .mone { background-color: #ff1493; width: 30px; height: 30px; border-radius: 50%; }
     .mayc { background-color: #8a2be2; width: 30px; height: 30px; border-radius: 50%; }
     #status, #winner { margin-top: 15px; font-size: 1.1em; }
-    input, button { padding: 8px; font-size: 1em; margin: 5px; }
+    input, button, select { padding: 8px; font-size: 1em; margin: 5px; }
   </style>
 </head>
 <body>
-  <h1>Territoires croisés Mone 🥊 VS May.C 👋</h1>
+  <h1>Reversi  Mone 🥊 VS May.C 👋</h1>
+
   <input type="text" id="room" placeholder="Nom de la partie">
+  <select id="playerChoice">
+    <option value="mone">Je suis Mone 🥊</option>
+    <option value="mayc">Je suis May.C 👋</option>
+  </select>
   <button onclick="joinRoom()">Rejoindre la partie</button>
+
   <div id="status"></div>
   <div id="board"></div>
   <div id="winner"></div>
@@ -38,14 +44,11 @@
 
     function joinRoom() {
       room = document.getElementById("room").value.trim();
+      myPlayer = document.getElementById("playerChoice").value;
       if (!room) return alert("Veuillez entrer un nom de partie");
       socket.emit("join", room);
+      status.textContent = `Vous êtes : ${myPlayer === 'mone' ? 'Mone 🥊' : 'May.C 👋'}`;
     }
-
-    socket.on("player", (p) => {
-      myPlayer = p;
-      status.textContent = `Vous êtes : ${p === 'mone' ? 'Mone 🥊' : 'May.C 👋'}`;
-    });
 
     socket.on("start", () => {
       status.textContent += " | La partie commence !";
@@ -111,7 +114,7 @@
 
       if (total === 64) {
         if (moneScore > maycScore) {
-          winner.innerHTML = `<h2 style="color:#ff1493">MONE 🥊</h2><p>Voilà baby, sorry mais pour ne pas changer I am the Boss et tu n'as tjs pas voix au chapitre May.C 😆😘🤷‍♀️</p>`;
+          winner.innerHTML = `<h2 style="color:#ff1493">MONE 🥊</h2><p>Voilà baby, sorry mais pour ne pas changer I am the Boss et tu n'as tjs pas voix au chapitre May.C 😆😘🧔‍♀️</p>`;
         } else if (maycScore > moneScore) {
           winner.innerHTML = `<h2 style="color:#8a2be2">May.C 👋</h2><p>May.C va te donner un gage... 😉😅</p>`;
         } else {
