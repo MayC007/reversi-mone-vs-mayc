@@ -8,15 +8,15 @@
     body { font-family: Arial, sans-serif; background: #f5f5f5; text-align: center; padding: 20px; }
     h1 { margin-bottom: 10px; }
     #board { display: grid; grid-template-columns: repeat(8, 40px); gap: 2px; margin: 20px auto; width: max-content; }
-    .cell { width: 40px; height: 40px; background: #006400; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .cell { width: 40px; height: 40px; background: #006400; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; position: relative; }
     .mone { background-color: #ff1493; width: 30px; height: 30px; border-radius: 50%; }
     .mayc { background-color: #8a2be2; width: 30px; height: 30px; border-radius: 50%; }
-    #status, #winner { margin-top: 15px; font-size: 1.1em; }
+    #status, #winner, #score { margin-top: 15px; font-size: 1.1em; }
     input, button, select { padding: 8px; font-size: 1em; margin: 5px; }
   </style>
 </head>
 <body>
-  <h1>Reversi  Mone 🥊 VS May.C 👋</h1>
+  <h1>Reversi Mone 🥊 VS May.C 👋</h1>
 
   <input type="text" id="room" placeholder="Nom de la partie">
   <select id="playerChoice">
@@ -24,8 +24,10 @@
     <option value="mayc">Je suis May.C 👋</option>
   </select>
   <button onclick="joinRoom()">Rejoindre la partie</button>
+  <a id="waLink" href="#" target="_blank">📲 WhatsApp adversaire</a>
 
   <div id="status"></div>
+  <div id="score"></div>
   <div id="board"></div>
   <div id="winner"></div>
   <button onclick="restart()">Rejouer</button>
@@ -36,11 +38,17 @@
     const board = document.getElementById("board");
     const status = document.getElementById("status");
     const winner = document.getElementById("winner");
+    const score = document.getElementById("score");
 
     let currentPlayer = "mone";
     let myPlayer = null;
     let room = null;
     const cells = Array(64).fill(null);
+
+    const contacts = {
+      mone: 'https://wa.me/32495651128?text=Rejoins%20ta%20partie%20Reversi%20ici%20:%20',
+      mayc: 'https://wa.me/32485197162?text=Viens%20jouer%20sur%20Reversi%20ici%20:%20'
+    };
 
     function joinRoom() {
       room = document.getElementById("room").value.trim();
@@ -48,15 +56,21 @@
       if (!room) return alert("Veuillez entrer un nom de partie");
       socket.emit("join", room);
       status.textContent = `Vous êtes : ${myPlayer === 'mone' ? 'Mone 🥊' : 'May.C 👋'}`;
+      document.getElementById("waLink").href = contacts[myPlayer] + window.location.href;
     }
 
-    socket.on("start", () => {
+    socket.on("start", (serverCells) => {
       status.textContent += " | La partie commence !";
+      if (serverCells && Array.isArray(serverCells)) {
+        serverCells.forEach((v, i) => cells[i] = v);
+      }
       createBoard();
+      updateBoard();
     });
 
-    socket.on("move", ({ cell, player }) => {
+    socket.on("move", ({ cell, player, updatedCells }) => {
       cells[cell] = player;
+      if (updatedCells) updatedCells.forEach((v, i) => cells[i] = v);
       updateBoard();
       currentPlayer = player === "mone" ? "mayc" : "mone";
     });
@@ -80,7 +94,6 @@
         div.addEventListener("click", () => playMove(i));
         board.appendChild(div);
       }
-      updateBoard();
     }
 
     function updateBoard() {
@@ -92,6 +105,10 @@
           cellDiv.appendChild(token);
         }
       });
+      const moneScore = cells.filter(c => c === 'mone').length;
+      const maycScore = cells.filter(c => c === 'mayc').length;
+      score.textContent = `Score : Mone 🥊 ${moneScore} - ${maycScore} 👋 May.C`;
+      checkWin();
     }
 
     function playMove(i) {
@@ -100,7 +117,6 @@
       updateBoard();
       socket.emit("move", { room, cell: i, player: myPlayer });
       currentPlayer = myPlayer === "mone" ? "mayc" : "mone";
-      checkWin();
     }
 
     function restart() {
