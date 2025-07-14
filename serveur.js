@@ -1,47 +1,48 @@
-const express = require("express");
+const express = require('express');
 const app = express();
-const http = require("http").createServer(app);
-const io = require("socket.io")(http);
-const path = require("path");
+const http = require('http').createServer(app);
+const io = require('socket.io')(http);
+const path = require('path');
 
-app.use(express.static(path.join(__dirname, "public")));
+const port = process.env.PORT || 3000;
 
-let players = {};
-let boardState = [];
+app.use(express.static(path.join(__dirname, 'public')));
 
-function initializeBoard() {
-  boardState = Array(8).fill(null).map(() => Array(8).fill(""));
-  boardState[3][3] = "mayc";
-  boardState[3][4] = "mone";
-  boardState[4][3] = "mone";
-  boardState[4][4] = "mayc";
-}
+let parties = {};
 
-initializeBoard();
+io.on('connection', (socket) => {
+    console.log('Nouvelle connexion :', socket.id);
 
-io.on("connection", (socket) => {
-  console.log("Nouvelle connexion :", socket.id);
+    socket.on('rejoindre', ({ roomId, joueur }) => {
+        socket.join(roomId);
+        if (!parties[roomId]) {
+            parties[roomId] = {
+                joueurs: {},
+                plateau: null
+            };
+        }
+        parties[roomId].joueurs[socket.id] = joueur;
 
-  socket.on("join", (username) => {
-    players[socket.id] = username;
-    socket.emit("playerColor", username);
-    socket.emit("boardUpdate", boardState);
-    console.log(username + " a rejoint la partie.");
-  });
+        io.to(roomId).emit('etat', {
+            joueur: joueur,
+            plateau: parties[roomId].plateau
+        });
+    });
 
-  socket.on("play", ({ x, y, player }) => {
-    if (boardState[y][x] === "") {
-      boardState[y][x] = player;
-      io.emit("boardUpdate", boardState);
-    }
-  });
+    socket.on('maj_plateau', ({ roomId, plateau }) => {
+        if (parties[roomId]) {
+            parties[roomId].plateau = plateau;
+            socket.to(roomId).emit('maj_plateau', plateau);
+        }
+    });
 
-  socket.on("disconnect", () => {
-    console.log("Déconnexion :", socket.id);
-    delete players[socket.id];
-  });
+    socket.on('disconnect', () => {
+        for (let roomId in parties) {
+            delete parties[roomId].joueurs[socket.id];
+        }
+    });
 });
 
-http.listen(3000, () => {
-  console.log("Serveur lancé sur http://localhost:3000");
+http.listen(port, () => {
+    console.log(`Serveur démarré sur http://localhost:${port}`);
 });
