@@ -1,118 +1,78 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>Reversi Mone 🥊 VS May.C 👋</title>
   <style>
-    body { font-family: sans-serif; text-align: center; }
-    table { border-spacing: 4px; margin: 10px auto; }
-    td { width: 40px; height: 40px; background: green; border-radius: 4px; cursor: pointer; }
-    .Mone { background: deeppink; }
-    .MayC { background: blueviolet; }
+    body { font-family: Arial; text-align: center; }
+    .cell { width: 40px; height: 40px; background: green; display: inline-block; margin: 2px; border-radius: 5px; cursor: pointer; }
+    .red { background: deeppink; }
+    .purple { background: purple; }
+    #plateau { margin-top: 20px; }
   </style>
 </head>
 <body>
   <h1>Reversi Mone 🥊 VS May.C 👋</h1>
-  <input id="roomId" placeholder="Nom de la partie" />
+  <input id="partie" placeholder="Nom de la partie">
   <select id="joueur">
     <option value="Mone">Je suis Mone 🥊</option>
-    <option value="MayC">Je suis May.C 👋</option>
+    <option value="May.C">Je suis May.C 👋</option>
   </select>
   <button onclick="rejoindre()">Rejoindre la partie</button>
-  <p id="status"></p>
+  <a id="whatsapp" target="_blank">📲 WhatsApp adversaire</a>
+
+  <p id="info"></p>
   <p id="score"></p>
-  <table id="plateau"></table>
+  <div id="plateau"></div>
+  <br>
   <button onclick="rejouer()">Rejouer</button>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
-    let joueur = '';
-    let roomId = '';
-    let plateau = [];
-
-    function creerPlateau() {
-      plateau = Array(8).fill().map(() => Array(8).fill(null));
-      plateau[3][3] = 'MayC';
-      plateau[4][4] = 'MayC';
-      plateau[3][4] = 'Mone';
-      plateau[4][3] = 'Mone';
-    }
-
-    function afficherPlateau() {
-      const table = document.getElementById("plateau");
-      table.innerHTML = '';
-      for (let i = 0; i < 8; i++) {
-        const row = document.createElement("tr");
-        for (let j = 0; j < 8; j++) {
-          const cell = document.createElement("td");
-          if (plateau[i][j]) cell.className = plateau[i][j];
-          cell.onclick = () => jouer(i, j);
-          row.appendChild(cell);
-        }
-        table.appendChild(row);
-      }
-
-      let mone = 0, mayc = 0;
-      plateau.flat().forEach(c => {
-        if (c === 'Mone') mone++;
-        if (c === 'MayC') mayc++;
-      });
-      document.getElementById('score').textContent = `Score : Mone 🥊 ${mone} - ${mayc} 👋 May.C`;
-    }
+    let partie = "", joueur = "", tour = "", plateau = [];
 
     function rejoindre() {
-      roomId = document.getElementById("roomId").value;
+      partie = document.getElementById("partie").value.trim();
       joueur = document.getElementById("joueur").value;
-      creerPlateau();
-      afficherPlateau();
-      document.getElementById("status").textContent = `Vous êtes : ${joueur === 'Mone' ? 'Mone 🥊' : 'May.C 👋'} | La partie commence !`;
-      socket.emit("rejoindre", { roomId, joueur });
+      if (!partie) return alert("Entrez un nom de partie");
+
+      socket.emit('rejoindre', { partie, joueur });
+      const link = `https://wa.me/?text=Rejoins moi ici : https://reversi-mone-vs-mayc.onrender.com (partie: ${partie})`;
+      document.getElementById("whatsapp").href = link;
+    }
+
+    socket.on('maj', data => {
+      plateau = data.plateau;
+      tour = data.tour;
+      render();
+    });
+
+    function jouer(x, y) {
+      if (tour !== joueur || plateau[y][x] !== '') return;
+      socket.emit('jouer', { partie, x, y });
     }
 
     function rejouer() {
-      creerPlateau();
-      afficherPlateau();
-      socket.emit("maj_plateau", { roomId, plateau });
+      socket.emit('rejouer', partie);
     }
 
-    function jouer(x, y) {
-      if (plateau[x][y]) return;
-      const adversaire = joueur === "Mone" ? "MayC" : "Mone";
-      let valide = false;
-
-      const directions = [[0,1],[1,0],[0,-1],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
-      for (const [dx, dy] of directions) {
-        let i = x + dx, j = y + dy, captures = [];
-        while (i >= 0 && j >= 0 && i < 8 && j < 8 && plateau[i][j] === adversaire) {
-          captures.push([i, j]);
-          i += dx; j += dy;
+    function render() {
+      document.getElementById("info").innerText = `Vous êtes : ${joueur} ${joueur === "Mone" ? "🥊" : "👋"} | La partie commence !`;
+      let red = 0, purple = 0;
+      let html = "";
+      for (let y = 0; y < 8; y++) {
+        for (let x = 0; x < 8; x++) {
+          const c = plateau[y][x];
+          if (c === 'red') red++;
+          if (c === 'purple') purple++;
+          html += `<div class="cell ${c}" onclick="jouer(${x},${y})"></div>`;
         }
-        if (i >= 0 && j >= 0 && i < 8 && j < 8 && plateau[i][j] === joueur && captures.length > 0) {
-          valide = true;
-          captures.forEach(([a, b]) => plateau[a][b] = joueur);
-        }
+        html += "<br>";
       }
-
-      if (valide) {
-        plateau[x][y] = joueur;
-        afficherPlateau();
-        socket.emit("maj_plateau", { roomId, plateau });
-      }
+      document.getElementById("plateau").innerHTML = html;
+      document.getElementById("score").innerText = `Score : Mone 🥊 ${red} - ${purple} 👋 May.C`;
     }
-
-    socket.on("maj_plateau", p => {
-      plateau = p;
-      afficherPlateau();
-    });
-
-    socket.on("etat", data => {
-      joueur = data.joueur;
-      if (data.plateau) {
-        plateau = data.plateau;
-        afficherPlateau();
-      }
-    });
   </script>
 </body>
 </html>
