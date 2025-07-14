@@ -1,101 +1,109 @@
-const express = require('express');
+
+const express = require("express");
+const path = require("path");
 const app = express();
-const http = require('http').createServer(app);
-const io = require('socket.io')(http);
-const path = require('path');
+const http = require("http").Server(app);
+const io = require("socket.io")(http);
 
-app.use(express.static('public'));
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
+app.use(express.static("public"));
 
-const parties = {};
+let games = {};
 
-io.on('connection', (socket) => {
-    socket.on('rejoindre', ({ partie, joueur }) => {
-        socket.join(partie);
-        if (!parties[partie]) {
-            parties[partie] = {
-                plateau: initPlateau(),
-                joueurs: {},
-                tour: 'Mone',
+function createInitialBoard() {
+    const size = 8;
+    const board = Array(size).fill(null).map(() => Array(size).fill(null));
+    const mid = size / 2;
+    board[mid - 1][mid - 1] = "May.C";
+    board[mid][mid] = "May.C";
+    board[mid - 1][mid] = "Mone";
+    board[mid][mid - 1] = "Mone";
+    return board;
+}
+
+function getScore(board) {
+    let score = { "Mone": 0, "May.C": 0 };
+    for (let row of board) {
+        for (let cell of row) {
+            if (cell === "Mone") score["Mone"]++;
+            if (cell === "May.C") score["May.C"]++;
+        }
+    }
+    return score;
+}
+
+io.on("connection", (socket) => {
+    socket.on("rejoindre", ({ room, joueur }) => {
+        socket.join(room);
+        if (!games[room]) {
+            games[room] = {
+                board: createInitialBoard(),
+                joueurActif: "Mone",
+                score: { "Mone": 2, "May.C": 2 }
             };
         }
-
-        parties[partie].joueurs[socket.id] = joueur;
-
-        // Envoyer l’état du plateau et joueur
-        io.to(partie).emit('maj', {
-            plateau: parties[partie].plateau,
-            tour: parties[partie].tour
-        });
+        socket.emit("etatJeu", games[room]);
     });
 
-    socket.on('jouer', ({ partie, x, y }) => {
-        const p = parties[partie];
-        if (!p) return;
+    socket.on("jouer", ({ room, x, y, joueur }) => {
+        let game = games[room];
+        if (!game || game.joueurActif !== joueur) return;
 
-        const joueur = p.joueurs[socket.id];
-        const couleur = joueur === 'Mone' ? 'red' : 'purple';
-        const adv = joueur === 'Mone' ? 'purple' : 'red';
+        let board = game.board;
+        if (board[y][x]) return;
 
-        if (p.tour !== joueur || p.plateau[y][x] !== '') return;
+        let directions = [
+            [0, 1], [1, 0], [0, -1], [-1, 0],
+            [1, 1], [-1, -1], [1, -1], [-1, 1]
+        ];
 
-        if (jouerCoup(p.plateau, x, y, couleur, adv)) {
-            p.tour = p.tour === 'Mone' ? 'May.C' : 'Mone';
-            io.to(partie).emit('maj', {
-                plateau: p.plateau,
-                tour: p.tour
-            });
+        let adversaire = joueur === "Mone" ? "May.C" : "Mone";
+        let validMove = false;
+
+        for (let [dx, dy] of directions) {
+            let nx = x + dx, ny = y + dy;
+            let toFlip = [];
+
+            while (
+                ny >= 0 && ny < 8 &&
+                nx >= 0 && nx < 8 &&
+                board[ny][nx] === adversaire
+            ) {
+                toFlip.push([nx, ny]);
+                nx += dx;
+                ny += dy;
+            }
+
+            if (
+                toFlip.length > 0 &&
+                ny >= 0 && ny < 8 &&
+                nx >= 0 && nx < 8 &&
+                board[ny][nx] === joueur
+            ) {
+                for (let [fx, fy] of toFlip) {
+                    board[fy][fx] = joueur;
+                }
+                validMove = true;
+            }
+        }
+
+        if (validMove) {
+            board[y][x] = joueur;
+            game.joueurActif = adversaire;
+            game.score = getScore(board);
+            io.to(room).emit("etatJeu", game);
         }
     });
 
-    socket.on('rejouer', (partie) => {
-        if (parties[partie]) {
-            parties[partie].plateau = initPlateau();
-            parties[partie].tour = 'Mone';
-            io.to(partie).emit('maj', {
-                plateau: parties[partie].plateau,
-                tour: parties[partie].tour
-            });
-        }
+    socket.on("reset", (room) => {
+        games[room] = {
+            board: createInitialBoard(),
+            joueurActif: "Mone",
+            score: { "Mone": 2, "May.C": 2 }
+        };
+        io.to(room).emit("etatJeu", games[room]);
     });
 });
 
-function initPlateau() {
-    const size = 8;
-    const plateau = Array.from({ length: size }, () => Array(size).fill(''));
-    plateau[3][3] = 'purple';
-    plateau[3][4] = 'red';
-    plateau[4][3] = 'red';
-    plateau[4][4] = 'purple';
-    return plateau;
-}
-
-function jouerCoup(plateau, x, y, couleur, adv) {
-    const directions = [
-        [0,1],[1,0],[0,-1],[-1,0],[1,1],[-1,-1],[1,-1],[-1,1]
-    ];
-    let valid = false;
-
-    for (const [dx, dy] of directions) {
-        let nx = x + dx, ny = y + dy;
-        let pieces = [];
-
-        while (nx >= 0 && ny >= 0 && nx < 8 && ny < 8 && plateau[ny][nx] === adv) {
-            pieces.push([nx, ny]);
-            nx += dx;
-            ny += dy;
-        }
-
-        if (pieces.length > 0 && nx >= 0 && ny >= 0 && nx < 8 && ny < 8 && plateau[ny][nx] === couleur) {
-            for (const [px, py] of pieces) {
-                plateau[py][px] = couleur;
-            }
-            plateau[y][x] = couleur;
-            valid = true;
-        }
-    }
-
-    return valid;
-}
-
-http.listen(3000, () => console.log('Serveur démarré sur http://localhost:3000'));
+http.listen(process.env.PORT || 3000, () => {
+    console.log("Serveur en écoute");
+});

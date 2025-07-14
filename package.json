@@ -1,7 +1,8 @@
+
 {
-  "name": "reversi",
+  "name": "reversi-mone-vs-mayc",
   "version": "1.0.0",
-  "description": "Jeu Reversi Mone vs May.C",
+  "description": "Reversi game",
   "main": "serveur.js",
   "scripts": {
     "start": "node serveur.js"
