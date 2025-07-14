@@ -1,5 +1,3 @@
-// serveur.js - Serveur WebSocket et Express pour Reversi
-
 const express = require("express");
 const path = require("path");
 const http = require("http");
@@ -28,29 +26,41 @@ function initializeBoard() {
 }
 
 io.on("connection", (socket) => {
-  console.log("Un utilisateur s'est connecté");
-
-  socket.on("join", (room) => {
+  socket.on("join", ({ room, player }) => {
     if (!rooms[room]) {
       rooms[room] = {
         players: [],
-        cells: initializeBoard()
+        cells: initializeBoard(),
       };
     }
 
-    if (rooms[room].players.length < 2) {
-      rooms[room].players.push(socket.id);
-      socket.join(room);
-      socket.emit("start", rooms[room].cells);
-    } else {
-      socket.emit("full");
+    if (!rooms[room].players.includes(player)) {
+      if (rooms[room].players.length >= 2) {
+        socket.emit("full");
+        return;
+      }
+      rooms[room].players.push(player);
     }
+
+    socket.join(room);
+    socket.room = room;
+    socket.player = player;
+
+    socket.emit("joined", {
+      player,
+      room,
+      cells: rooms[room].cells,
+    });
   });
 
-  socket.on("move", ({ room, cell, player }) => {
-    if (!rooms[room]) return;
-    rooms[room].cells[cell] = player;
-    io.to(room).emit("move", { cell, player, updatedCells: rooms[room].cells });
+  socket.on("move", ({ room, updatedCells, nextPlayer }) => {
+    if (rooms[room]) {
+      rooms[room].cells = updatedCells;
+      io.to(room).emit("move", {
+        updatedCells,
+        nextPlayer,
+      });
+    }
   });
 
   socket.on("restart", (room) => {
@@ -60,13 +70,13 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("disconnecting", () => {
-    for (const room of socket.rooms) {
-      if (rooms[room]) {
-        rooms[room].players = rooms[room].players.filter((id) => id !== socket.id);
-        if (rooms[room].players.length === 0) {
-          delete rooms[room];
-        }
+  socket.on("disconnect", () => {
+    const room = socket.room;
+    const player = socket.player;
+    if (room && rooms[room]) {
+      rooms[room].players = rooms[room].players.filter((p) => p !== player);
+      if (rooms[room].players.length === 0) {
+        delete rooms[room];
       }
     }
   });
