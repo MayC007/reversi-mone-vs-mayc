@@ -41,7 +41,6 @@ io.on("connection", (socket) => {
     if (rooms[room].players.length < 2) {
       rooms[room].players.push(socket.id);
       socket.join(room);
-
       socket.emit("start", rooms[room].cells);
     } else {
       socket.emit("full");
