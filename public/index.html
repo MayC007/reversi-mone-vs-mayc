@@ -1,80 +1,74 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <title>Reversi Mone 🥊 VS May.C 👋</title>
-  <style>
-    body { text-align: center; font-family: Arial; }
-    table { border-collapse: collapse; margin: 20px auto; }
-    td {
-      width: 40px; height: 40px;
-      background-color: green;
-      border: 1px solid #000;
-      cursor: pointer;
-    }
-    .Mone { background-color: deeppink; }
-    .MayC { background-color: purple; }
-  </style>
+    <meta charset="UTF-8">
+    <title>Reversi Mone 🥊 VS May.C 👋</title>
+    <style>
+        body { text-align: center; font-family: Arial, sans-serif; }
+        table { margin: 20px auto; border-spacing: 5px; }
+        td { width: 40px; height: 40px; background-color: green; cursor: pointer; }
+        .Mone { background-color: fuchsia; }
+        .MayC { background-color: purple; }
+    </style>
 </head>
 <body>
-  <h2>Reversi Mone 🥊 VS May.C 👋</h2>
+    <h2>Reversi Mone 🥊 VS May.C 👋</h2>
+    <select id="room">
+        <option>first</option>
+    </select>
+    <select id="player">
+        <option>Mone 🥊</option>
+        <option>May.C 👋</option>
+    </select>
+    <button onclick="joinGame()">Rejoindre la partie</button>
+    <a href="#" id="invite">📲 WhatsApp adversaire</a>
+    <p id="status">Choisissez une partie</p>
+    <table id="board"></table>
+    <p id="score">Score</p>
+    <button onclick="replay()">Rejouer</button>
 
-  <input type="text" id="nomPartie" value="first" />
-  <select id="joueur">
-    <option value="Mone">Je suis Mone 🥊</option>
-    <option value="MayC">Je suis May.C 👋</option>
-  </select>
-  <button onclick="rejoindre()">Rejoindre la partie</button>
-  <a href="#" id="lienWhatsApp" target="_blank">📲 WhatsApp adversaire</a>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let currentPlayer = "";
+        let currentRoom = "";
 
-  <p id="info"></p>
-  <p id="score"></p>
-  <div id="plateau"></div>
-  <button onclick="reset()">Rejouer</button>
-
-  <script src="/socket.io/socket.io.js"></script>
-  <script>
-    const socket = io();
-    let nomPartie = "first";
-    let joueur = "Mone";
-
-    function rejoindre() {
-      nomPartie = document.getElementById('nomPartie').value.trim() || 'first';
-      joueur = document.getElementById('joueur').value;
-      socket.emit('rejoindrePartie', { nom: nomPartie, joueur });
-
-      const lien = `https://wa.me/?text=Rejoins moi ici : https://${window.location.hostname} (partie: ${nomPartie})`;
-      document.getElementById('lienWhatsApp').href = lien;
-    }
-
-    socket.on('majPartie', (partie) => {
-      document.getElementById('info').innerText = `Vous êtes : ${joueur} ${joueur === 'Mone' ? '🥊' : '👋'} | La partie commence !`;
-      document.getElementById('score').innerText = `Score : Mone 🥊 ${partie.score.Mone} - ${partie.score.MayC} 👋 May.C`;
-
-      const div = document.getElementById('plateau');
-      div.innerHTML = '';
-      const table = document.createElement('table');
-
-      for (let i = 0; i < 8; i++) {
-        const row = document.createElement('tr');
-        for (let j = 0; j < 8; j++) {
-          const cell = document.createElement('td');
-          const val = partie.plateau[i][j];
-          if (val) cell.className = val;
-          cell.onclick = () => socket.emit('jouerCoup', { nom: nomPartie, x: i, y: j, joueur });
-          row.appendChild(cell);
+        function joinGame() {
+            const room = document.getElementById('room').value;
+            const player = document.getElementById('player').value.includes('Mone') ? 'Mone' : 'MayC';
+            currentPlayer = player;
+            currentRoom = room;
+            socket.emit('joinGame', { room, player });
+            const phone = '0032485197162';
+            document.getElementById('invite').href = `https://wa.me/${phone}?text=Rejoins moi ici : https://${window.location.host} (partie: ${room})`;
         }
-        table.appendChild(row);
-      }
 
-      div.appendChild(table);
-    });
+        socket.on('update', (game) => {
+            document.getElementById('status').textContent = `Vous êtes : ${currentPlayer === 'Mone' ? 'Mone 🥊' : 'May.C 👋'} | La partie commence !`;
+            document.getElementById('score').textContent = `Score : Mone 🥊 ${game.scores.Mone} - ${game.scores.MayC} 👋 May.C`;
+            const table = document.getElementById('board');
+            table.innerHTML = "";
+            game.board.forEach((row, r) => {
+                const tr = document.createElement('tr');
+                row.forEach((cell, c) => {
+                    const td = document.createElement('td');
+                    td.className = cell || '';
+                    td.onclick = () => socket.emit('play', { room: currentRoom, row: r, col: c, player: currentPlayer });
+                    tr.appendChild(td);
+                });
+                table.appendChild(tr);
+            });
+        });
 
-    function reset() {
-      socket.emit('resetPartie', nomPartie);
-    }
+        socket.on('reset', () => {
+            document.getElementById('status').textContent = 'Partie réinitialisée.';
+            document.getElementById('score').textContent = '';
+            document.getElementById('board').innerHTML = '';
+        });
 
-    socket.on('reset', () => location.reload());
-  </script>
+        function replay() {
+            socket.emit('reset', currentRoom);
+        }
+    </script>
 </body>
 </html>
